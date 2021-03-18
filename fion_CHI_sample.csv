@@ -1,0 +1,51 @@
+Filename,Age,Month,Utt_no,Speaker,Utterance,Lang_Tags,Utterance_clean,type,Wordcount
+fin020312.cha,02;03.12,02;03,1,CHI,da .,NA,da,german,1
+fin020312.cha,02;03.12,02;03,17,CHI,enen<trx_ein> kleiner daktor<trx_traktor> .,NA,ein kleiner traktor,german,3
+fin020312.cha,02;03.12,02;03,21,CHI,enen<trx_ein> daktor<trx_traktor> her .,NA,ein traktor her,german,3
+fin020312.cha,02;03.12,02;03,28,CHI,un<trx_und> auch en<trx_einer> da .,NA,und auch einer da,german,4
+fin020312.cha,02;03.12,02;03,31,CHI,mann and frau ?,g e g,mann and frau,mixed,3
+fin020312.cha,02;03.12,02;03,33,CHI,ein<trx_eine> frau .,NA,eine frau,german,2
+fin020312.cha,02;03.12,02;03,42,CHI,helm .,NA,helm,german,1
+fin020312.cha,02;03.12,02;03,68,CHI,where ?,NA,where,english,1
+fin020312.cha,02;03.12,02;03,73,CHI,ja .,NA,ja,german,1
+fin020312.cha,02;03.12,02;03,76,CHI,n<trx_eine> ban<trx_bahn> .,NA,eine bahn,german,2
+fin020312.cha,02;03.12,02;03,78,CHI,un<tra_und> daktor<trx_traktor> .,NA,und traktor,german,2
+fin020312.cha,02;03.12,02;03,88,CHI,ma brots<trx_brot> .,NA,ma brot,german,2
+fin020312.cha,02;03.12,02;03,90,CHI,ja .,NA,ja,german,1
+fin020312.cha,02;03.12,02;03,92,CHI,bisschen .,NA,bisschen,german,1
+fin020312.cha,02;03.12,02;03,108,CHI,ja .,NA,ja,german,1
+fin020312.cha,02;03.12,02;03,110,CHI,ja .,NA,ja,german,1
+fin020312.cha,02;03.12,02;03,115,CHI,mamama raeder .,NA,mamama raeder,german,2
+fin020312.cha,02;03.12,02;03,117,CHI,raeder .,NA,raeder,german,1
+fin020312.cha,02;03.12,02;03,119,CHI,raeder .,NA,raeder,german,1
+fin020312.cha,02;03.12,02;03,130,CHI,da .,NA,da,german,1
+fin020312.cha,02;03.12,02;03,132,CHI,ja .,NA,ja,german,1
+fin020312.cha,02;03.12,02;03,135,CHI,da .,NA,da,german,1
+fin020312.cha,02;03.12,02;03,146,CHI,und da und da .,NA,und da und da,german,4
+fin020312.cha,02;03.12,02;03,148,CHI,und da .,NA,und da,german,2
+fin020312.cha,02;03.12,02;03,154,CHI,ja .,NA,ja,german,1
+fin020312.cha,02;03.12,02;03,156,CHI,un<trx_und> mal<trx_alle> maenner .,NA,und alle maenner,german,3
+fin020312.cha,02;03.12,02;03,177,CHI,ich hab durst .,NA,ich hab durst,german,3
+fin020312.cha,02;03.12,02;03,190,CHI,apfelschorle oh guckmal .,NA,apfelschorle oh guckmal,german,3
+fin020312.cha,02;03.12,02;03,192,CHI,guckmal .,NA,guckmal,german,1
+fin020312.cha,02;03.12,02;03,195,CHI,papa da .,NA,papa da,german,2
+fin020312.cha,02;03.12,02;03,201,CHI,ja .,NA,ja,german,1
+fin020312.cha,02;03.12,02;03,211,CHI,n<trx_ein> ander<trx_anderer> granda<trx_granddad> .,NA,ein anderer granddad,german,3
+fin020312.cha,02;03.12,02;03,214,CHI,ja .,NA,ja,german,1
+fin020312.cha,02;03.12,02;03,216,CHI,polizei .,NA,polizei,german,1
+fin020312.cha,02;03.12,02;03,218,CHI,ja .,NA,ja,german,1
+fin020312.cha,02;03.12,02;03,224,CHI,ein ander<trx_andere> granda<trx_granddad> .,NA,ein andere granddad,german,3
+fin020312.cha,02;03.12,02;03,225,CHI,ander<trx_andere> granda .,NA,andere granda,german,2
+fin020312.cha,02;03.12,02;03,227,CHI,ein ander<trx_andere> granda .,NA,ein andere granda,german,3
+fin020312.cha,02;03.12,02;03,230,CHI,papa dan<trx_dran> .,NA,papa dran,german,2
+fin020312.cha,02;03.12,02;03,231,CHI,papa dan<trx_dran> .,NA,papa dran,german,2
+fin020312.cha,02;03.12,02;03,233,CHI,ja .,NA,ja,german,1
+fin020312.cha,02;03.12,02;03,236,CHI,n ich mal .,NA,n ich mal,german,3
+fin020312.cha,02;03.12,02;03,243,CHI,aehm ich mal .,NA,aehm ich mal,german,3
+fin020312.cha,02;03.12,02;03,245,CHI,hallo .,NA,hallo,german,1
+fin020312.cha,02;03.12,02;03,247,CHI,hallo .,NA,hallo,german,1
+fin020312.cha,02;03.12,02;03,251,CHI,hallo arm .,NA,hallo arm,german,2
+fin020312.cha,02;03.12,02;03,253,CHI,hallo arm .,NA,hallo arm,german,2
+fin020312.cha,02;03.12,02;03,255,CHI,nase .,NA,nase,german,1
+fin020312.cha,02;03.12,02;03,257,CHI,ja .,NA,ja,german,1
+fin020312.cha,02;03.12,02;03,261,CHI,ohrna<trx_ohren> .,NA,ohren,german,1

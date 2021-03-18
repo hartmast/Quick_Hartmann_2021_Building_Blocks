@@ -1,0 +1,51 @@
+Filename,Age,Month,Utt_no,Speaker,Utterance,Lang_Tags,Utterance_clean,type,Wordcount
+sylvie020401_a.cha,02;04.01,02;04,7,CHI,auf s sofa .,NA,auf s sofa,german,3
+sylvie020401_a.cha,02;04.01,02;04,11,CHI,hier is<trx_ist> der tisch .,NA,hier ist der tisch,german,4
+sylvie020401_a.cha,02;04.01,02;04,19,CHI,schwein .,NA,schwein,german,1
+sylvie020401_a.cha,02;04.01,02;04,23,CHI,cow .,NA,cow,english,1
+sylvie020401_a.cha,02;04.01,02;04,26,CHI,ein .,NA,ein,german,1
+sylvie020401_a.cha,02;04.01,02;04,35,CHI,das sheep .,g e,das sheep,mixed,2
+sylvie020401_a.cha,02;04.01,02;04,37,CHI,ja .,NA,ja,german,1
+sylvie020401_a.cha,02;04.01,02;04,45,CHI,the duck .,NA,the duck,english,2
+sylvie020401_a.cha,02;04.01,02;04,49,CHI,das .,NA,das,german,1
+sylvie020401_a.cha,02;04.01,02;04,63,CHI,das !,NA,das,german,1
+sylvie020401_a.cha,02;04.01,02;04,74,CHI,ja .,NA,ja,german,1
+sylvie020401_a.cha,02;04.01,02;04,78,CHI,das .,NA,das,german,1
+sylvie020401_a.cha,02;04.01,02;04,80,CHI,number vlier<trx_vier> .,e g,number vier,mixed,2
+sylvie020401_a.cha,02;04.01,02;04,93,CHI,cow .,NA,cow,english,1
+sylvie020401_a.cha,02;04.01,02;04,94,CHI,und huehnern .,NA,und huehnern,german,2
+sylvie020401_a.cha,02;04.01,02;04,98,CHI,die sheepen<trx_sheep> .,g m,die sheep,mixed,2
+sylvie020401_a.cha,02;04.01,02;04,107,CHI,das !,NA,das,german,1
+sylvie020401_a.cha,02;04.01,02;04,111,CHI,blume .,NA,blume,german,1
+sylvie020401_a.cha,02;04.01,02;04,113,CHI,ja .,NA,ja,german,1
+sylvie020401_a.cha,02;04.01,02;04,119,CHI,kuh zu kuh .,NA,kuh zu kuh,german,3
+sylvie020401_a.cha,02;04.01,02;04,133,CHI,nein .,NA,nein,german,1
+sylvie020401_a.cha,02;04.01,02;04,145,CHI,bin ich dran .,NA,bin ich dran,german,3
+sylvie020401_a.cha,02;04.01,02;04,149,CHI,sheep .,NA,sheep,english,1
+sylvie020401_a.cha,02;04.01,02;04,159,CHI,schaf zu schaf .,NA,schaf zu schaf,german,3
+sylvie020401_a.cha,02;04.01,02;04,166,CHI,das .,NA,das,german,1
+sylvie020401_a.cha,02;04.01,02;04,174,CHI,nein .,NA,nein,german,1
+sylvie020401_a.cha,02;04.01,02;04,176,CHI,ja .,NA,ja,german,1
+sylvie020401_a.cha,02;04.01,02;04,185,CHI,huehnern<trx_huehner> .,NA,huehner,german,1
+sylvie020401_a.cha,02;04.01,02;04,200,CHI,das .,NA,das,german,1
+sylvie020401_a.cha,02;04.01,02;04,203,CHI,piggy .,NA,piggy,english,1
+sylvie020401_a.cha,02;04.01,02;04,208,CHI,ja .,NA,ja,german,1
+sylvie020401_a.cha,02;04.01,02;04,219,CHI,nee<trx_nein> da dran .,NA,nein da dran,german,3
+sylvie020401_a.cha,02;04.01,02;04,228,CHI,c cows cows .,NA,c cows cows,english,3
+sylvie020401_a.cha,02;04.01,02;04,229,CHI,auch kaputt .,NA,auch kaputt,german,2
+sylvie020401_a.cha,02;04.01,02;04,232,CHI,da !,NA,da,german,1
+sylvie020401_a.cha,02;04.01,02;04,235,CHI,ja ja ja .,NA,ja ja ja,german,3
+sylvie020401_a.cha,02;04.01,02;04,240,CHI,da ?,NA,da,german,1
+sylvie020401_a.cha,02;04.01,02;04,251,CHI,da !,NA,da,german,1
+sylvie020401_a.cha,02;04.01,02;04,258,CHI,das .,NA,das,german,1
+sylvie020401_a.cha,02;04.01,02;04,260,CHI,enten .,NA,enten,german,1
+sylvie020401_a.cha,02;04.01,02;04,266,CHI,go like that !,NA,go like that,english,3
+sylvie020401_a.cha,02;04.01,02;04,268,CHI,duck to duck .,NA,duck to duck,english,3
+sylvie020401_a.cha,02;04.01,02;04,272,CHI,du bist go .,g g e,du bist go,mixed,3
+sylvie020401_a.cha,02;04.01,02;04,274,CHI,ja .,NA,ja,german,1
+sylvie020401_a.cha,02;04.01,02;04,281,CHI,nein so rum .,NA,nein so rum,german,3
+sylvie020401_a.cha,02;04.01,02;04,285,CHI,daddy s<tra_'s;s> go daddy s<tra_'s;s> go .,NA,daddy ss go daddy ss go,english,6
+sylvie020401_a.cha,02;04.01,02;04,286,CHI,du bist dran .,NA,du bist dran,german,3
+sylvie020401_a.cha,02;04.01,02;04,288,CHI,ja .,NA,ja,german,1
+sylvie020401_a.cha,02;04.01,02;04,301,CHI,schwein zu schwein .,NA,schwein zu schwein,german,3
+sylvie020401_a.cha,02;04.01,02;04,303,CHI,da !,NA,da,german,1
