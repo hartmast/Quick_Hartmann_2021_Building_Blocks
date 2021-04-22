@@ -4,12 +4,11 @@ subtitle: Suppplementary material
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: 
   html_document:
-    theme: readable
+    theme: flatly
     highlight: tango
     toc: true
     toc_float: true
     collapsed: false
-    fig_width: 10
     df_print: paged
 ---
 
@@ -823,6 +822,11 @@ model_input_silvie <- rbind(
   
 )
 
+# Use within-corpus as baseline category
+model_input_fion$type <- factor(model_input_fion$type, levels = c("within", "cross"))
+
+model_input_silvie$type <- factor(model_input_silvie$type, levels = c("within", "cross"))
+
 
 m_fion <- glmer(success ~ type + (1 | Utterance_clean),
       data = model_input_fion, family = "binomial")
@@ -854,6 +858,11 @@ model_silvie_input <- rbind(
 
 filter(silvie_mwu, type == "mixed") %>% select(Utterance_clean, success_fion_input)  %>% mutate(Type = "cross") %>% rename(success = success_fion_input)
 )
+
+# within-corpus as baseline category
+model_fion_input$Type <- factor(model_fion_input$Type, levels = c("within", "cross"))
+
+model_silvie_input$Type <- factor(model_silvie_input$Type, levels = c("within", "cross"))
 
 m_fion_input <- glmer(success ~ Type + (1 | Utterance_clean),
                       data = model_fion_input, family = "binomial")
