@@ -1,0 +1,886 @@
+---
+title: "The building blocks of code-mixing"
+subtitle: Suppplementary material
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    theme: readable
+    highlight: tango
+    toc: true
+    toc_float: true
+    collapsed: false
+    fig_width: 10
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+This document contains the source code of Quick & Hartmann (under review). A small sample of the data used in the paper is available here: <https://github.com/hartmast/Quick_Hartmann_2021_Building_Blocks>. We plan to publish the entire corpus in due time, but currently it still has to be revised in order to make sure that the data are fully anonymized.
+
+## Packages
+
+First we load a number of packages.
+
+```{r pkgs, message = FALSE, warning = FALSE}
+
+# install non-CRAN package "wizard" if not yet installed
+if(!require("devtools")) install.packages("devtools")
+if(!require("wizard")) devtools::install_github("hartmast/wizard")
+
+library(tidyverse)
+library(tidytext)
+library(ngram)
+library(quanteda)
+library(parallel)
+library(pbmcapply)
+library(wizard)
+library(patchwork)
+library(RColorBrewer)
+library(lme4)
+library(effects)
+library(lmerTest)
+```
+
+## Helper functions
+
+We define a first helper function that searches for entire words (i.e. strings preceded and followed by either a whitespace or the beginning or end of the element.)
+
+```{r helpers}
+# convenience function: grep whole word
+grepw <- function(pattern, x, ...) {
+  grep(paste("(^| )", pattern, "(?=( |$))|(?<= |^)", pattern, "( |$)", sep="", collapse=""), x, perl = T, ...)
+}
+
+# the same but returns binary result (like grepl):
+greplw <- function(pattern, x, ...) {
+  grepl(paste("(^| )", pattern, "(?=( |$))|(?<= |^)", pattern, "( |$)", sep="", collapse=""), x, perl = T, ...)
+}
+```
+
+The next two helper functions are jointly used to generate the pattern candidates from the data. The first replaces the n-th word in a string by XXX, the second simply gets the indices of words to be replaced. Each word and each bigram is supposed to be replaced once in the resulting list of pattern candidates, i.e. if we have an utterance consisting of 4 words, the results would be 1, 2, 3, 4, c(1,2), c(2,3), and c(3,4). The two functions are combined in all_xxx, which returns the list of pattern candidates as shown in the example below. In addition, it appends the original utterance as the last element of the list.
+
+```{r getxxx}
+
+# function for replacing n-th word by xxx
+xxx_this <- function(x, n) {
+  x <- unlist(strsplit(x, " "))
+  x[n] <- "XXX"
+  x <- paste0(x, collapse = " ")
+  return(x)
+}
+
+# function for required replacement indices
+xxx_l <- function(x) {
+  x <- unlist(strsplit(x, " "))
+  l1 <- as.list(1:length(x))
+  
+  if(length(x) > 1) {
+    l2 <- lapply(1:(length(x)-1), function(i) c(i:(i+1)))
+    l  <- c(l1, l2)
+  } else {
+    l <- l1
+  }
+   
+  return(l)
+  
+}
+
+
+# combine both functions: get all possible
+# replacements of 1 or 2 words,
+# then all possible 1- to 4-grams
+
+all_xxx <- function(x) {
+  
+  # collector
+  my_list <- list()
+  
+  # iterate over all vectors
+  for(i in 1:length(x)) {
+    l_cur <- xxx_l(x[i])
+    y <-  lapply(1:length(l_cur), 
+                function(j) xxx_this(x[i], l_cur[[j]]))
+    y[[length(y)+1]] <- x[i]
+    my_list[[i]] <- y
+  }
+  
+  return(my_list)
+  
+}
+
+all_xxx("This is a test")
+
+```
+
+Another helper function identifies the longest consecutive string that is not XXX. This will be used to rank the pattern candidates: In line with previous traceback approaches, the ones with the longest consecutive strings are preferred.
+
+```{r longestconstr}
+
+# function for getting the longest subsequent string ----------------------
+# (i.e. if there are multiple candidates of frame-
+# and-slot patterns, identify the one with the longest
+# subsequent fixed string, i.e. string that is not XXX)
+
+get_successive_strings <- function(x) {
+  x1 <- unlist(strsplit(x, " "))
+  x2 <- which(x1 == "XXX") # find XXX
+  x_before <- min(x2) - 1
+  x_after <- length(x1) - max(x2)
+  x3 <- max(x_before, x_after)
+  return(x3)
+}
+
+```
+
+And finally, it will also be important to find out which word has been replaced by XXX. This is the purpose of this last helper function.
+
+```{r whichxxx}
+
+# find out which word(s) has/have been replaced by XXX
+which_xxx <- function(x) {
+  x <- as.character(x)
+  x <- sapply(1:length(x), 
+              function(i) which(unlist(strsplit(x[i], " "))=="XXX"))
+  return(x)
+}
+
+```
+
+## Read data
+
+Next, we read in the datasets.
+
+```{r datasets, message = FALSE}
+
+
+fion <- read_csv("../master/fion_CHI.csv")
+fion_input <- read_csv("../master/fion_input.csv")
+silvie <- read_csv("../master/silvie_CHI.csv")
+silvie_input <- read_csv("../master/silvie_input.csv")
+
+
+
+```
+
+As single-word utterances are not interesting for our purposes, we reduce the children's data to multi-word utterances.
+
+```{r mwus}
+
+# only multi-word units ---------------------------------------------------
+
+fion_mwu <- filter(fion, Wordcount > 1)
+silvie_mwu <- filter(silvie, Wordcount > 1)
+
+```
+
+## Get pattern candidates
+
+We now create a list of pattern candidates by applying the function defined above to all instances.
+
+```{r apply_xxx, cache = TRUE}
+
+# to use the function more efficiently, we vectorize it
+all_xxx_v <- Vectorize(all_xxx)
+
+# now we apply it to all instances
+# both of the input and the MWUs.
+fion_input_xxx <- all_xxx_v(fion_input$Utterance_clean)
+fion_mwu_xxx <- all_xxx_v(fion_mwu$Utterance_clean)
+fion_mono_xxx <- all_xxx_v(filter(fion_mwu, type != "mixed")$Utterance_clean)
+fion_mixed_xxx <- all_xxx_v(filter(fion_mwu, type == "mixed")$Utterance_clean)
+
+silvie_input_xxx <- all_xxx_v(silvie_input$Utterance_clean)
+silvie_mwu_xxx <- all_xxx_v(silvie_mwu$Utterance_clean)
+silvie_mono_xxx <- all_xxx_v(filter(silvie_mwu, type != "mixed")$Utterance_clean)
+silvie_mixed_xxx <- all_xxx_v(filter(silvie_mwu, type == "mixed")$Utterance_clean)
+
+
+```
+
+## Traceback
+
+This brings us to the heart of the traceback method: We check whether the full utterance or one of the detected patterns can be found in the main corpus, i.e. a) the input, b) the child's monolingual data.
+
+In a first step, we check whether there is a *verbatim match* in the main corpus. We use the multi-core version of `lapply`, `pbclapply` from the `parallel` package. The algorithm uses the `greplw` function defined above, which returns TRUE for all utterance in with the string we search for is attested, and checks whether it returns TRUE for any utterance in the respective main corpus. Here we work with utterance types instead of tokens as some utterances are used more than once.
+
+```{r verbatimmatches, eval = FALSE}
+
+# list of utterance types
+utterance_types <- c(fion_input$Utterance_clean, fion_mwu$Utterance_clean, silvie$Utterance_clean, silvie_mwu$Utterance_clean) %>% unique
+
+# data frame indicating for each utterance whether it occurs in the respective main corpus
+
+utterance_types_matches <- tibble(
+  Utterance_clean = utterance_types,
+  exact_match_silvie_input = unlist(pbmclapply(1:length(utterance_types), function(i)
+  any(greplw(utterance_types[i], silvie_input$Utterance_clean)), mc.cores = 6)),
+  exact_match_fion_input = unlist(pbmclapply(1:length(utterance_types), function(i)
+  any(greplw(utterance_types[i], fion_input$Utterance_clean)), mc.cores = 6))
+)
+
+```
+
+```{r exportthis, echo = FALSE, eval = FALSE}
+
+utterance_types_matches$exact_match_silvie_input <- unlist(utterance_types_matches$exact_match_silvie_input)
+utterance_types_matches$exact_match_fion_input <- unlist(utterance_types_matches$exact_match_fion_input)
+utterance_types_matches$exact_match_fion_mono <- unlist(utterance_types_matches$exact_match_fion_mono)
+utterance_types_matches$exact_match_silvie_mono <- unlist(utterance_types_matches$exact_match_silvie_mono)
+
+
+write_csv(utterance_types_matches, "utterance_types_matches.csv")
+
+```
+
+```{r reimport, include = FALSE}
+
+utterance_types_matches <- read_csv("utterance_types_matches.csv")
+
+```
+
+We now join the new dataframe with the existing ones.
+
+```{r joindfs, message=FALSE}
+
+fion_mwu <- left_join(fion_mwu, utterance_types_matches)
+silvie_mwu <- left_join(silvie_mwu, utterance_types_matches)
+
+```
+
+Now, we get the number of successive strings in each pattern using the function defined above. This information will later be used to rank the patterns.
+
+```{r sucstr2}
+
+# vectorized version:
+get_successive_strings_v <- Vectorize(get_successive_strings)
+
+# for Fion:
+fion_mwu_xxx_successive <- pbmclapply(1:length(fion_mwu_xxx),
+           function(i) suppressWarnings(get_successive_strings_v(fion_mwu_xxx[[i]])))
+
+# for Silvie:
+silvie_mwu_xxx_successive <- pbmclapply(1:length(silvie_mwu_xxx),
+                                      function(i) suppressWarnings(get_successive_strings_v(silvie_mwu_xxx[[i]])))
+
+```
+
+We also have to find out which word(s) has/have been replaced in each pattern candidate, using the appropriate helper function defined above.
+
+```{r whichxxx2}
+
+fion_mwu_which_xxx <- 
+  pbmclapply(1:length(fion_mwu_xxx), 
+             function(i) which_xxx(fion_mwu_xxx[[i]]), mc.cores = 6)
+
+silvie_mwu_which_xxx <- 
+  pbmclapply(1:length(silvie_mwu_xxx), 
+             function(i) which_xxx(silvie_mwu_xxx[[i]]), mc.cores = 6)
+
+
+```
+
+As we want to know whether the omitted words occur in the main corpus, we compile a list of tokens and determine for each token whether or not it occurs in the monolingual and in the input data.
+
+```{r tokens, message = FALSE}
+
+# get list of words and check if they are attested
+# in a) Fion's monolingual data, b) Fion's input data,
+# c) Silvie's monolingual data, d) Silvie' input data
+
+all_tokens <- c(
+  tokens(filter(silvie, type != "mixed")$Utterance_clean) %>% unlist %>% as.character() %>% unique,
+  tokens(filter(fion, type != "mixed")$Utterance_clean) %>% unlist %>% as.character() %>% unique,
+  tokens(silvie_input$Utterance_clean) %>% unlist %>% as.character() %>% unique,
+  tokens(fion_input$Utterance_clean) %>% unlist %>% as.character() %>% unique
+) %>% unique
+
+all_tokens_check <- tibble(
+  token = all_tokens,
+  silvie_mono = all_tokens %in% as.character(unlist(tokens(filter(silvie, type != "mixed")$Utterance_clean))),
+fion_mono = all_tokens %in% as.character(unlist(tokens(filter(fion, type != "mixed")$Utterance_clean))),
+silvie_input = all_tokens %in% as.character(unlist(tokens(silvie_input$Utterance_clean))),
+fion_input = all_tokens %in% as.character(unlist(tokens(fion_input$Utterance_clean)))
+)
+
+
+```
+
+Now we have to check, for each pattern, whether the omitted word occurs in the respective main corpus. Otherwise, it will not be counted as a valid pattern.
+
+For this purpose, we first define a helper function:
+
+```{r findomittedtokens1}
+
+find_in_tokens <- function(x, col) {
+  # if the token is "" (i.e. "character(0)"), proceed
+  if(!any(identical(x, character(0)))) {
+    
+    # otherwise, find it in the list of tokens
+    if(all(x %in% all_tokens)) {
+      return(all(sapply(1:length(x), 
+                        function(i) 
+                          as.logical(all_tokens_check[which(all_tokens_check$token==x[i]), which(colnames(all_tokens_check)==col)]))))
+    } else {
+      return(FALSE)
+    }
+  } else {
+    return(FALSE)
+  }
+  
+}
+
+```
+
+For each word, we now want to know the omitted word(s). As in some patterns, one word has been replaced by XXX and in others two, we work with two subsets because if two words have been replaced, the pattern only counts as valid - in combination with the concrete utterance - if the two omitted words are attested consecutively in the main corpus.
+
+```{r patterncandidates1}
+
+# first, get tibble with all candidate patterns
+pattern_candidates <- tibble(
+  pattern = c(unlist(fion_mwu_xxx), unlist(silvie_mwu_xxx)) %>% as.character
+)
+
+
+# find the ones that don't have XXX in them
+# (those are the targets)
+no_xxx <- grep("XXX", pattern_candidates$pattern, invert = T)
+pattern_candidates$target <- character(nrow(pattern_candidates))
+pattern_candidates$target <- c(rep(pattern_candidates$pattern[no_xxx[1]], no_xxx[1]),
+  unlist(sapply(2:length(no_xxx),
+                function(i)
+                  rep(pattern_candidates$pattern[no_xxx[i]],
+                      nrow(pattern_candidates[no_xxx[i-1]:(no_xxx[i]-1),])))))
+
+# remove no_xxx
+pattern_candidates <- pattern_candidates[-no_xxx,]
+ 
+# remove "XXX XXX" as this is not a valid pattern
+pattern_candidates <- pattern_candidates[-which(pattern_candidates=="XXX XXX"),]
+
+# get only the ones that contain "XXX" but not "XXX XXX" (i.e. those in which only one word has been replaced)
+pattern_candidates1 <- pattern_candidates[grep("XXX XXX", pattern_candidates$pattern, invert = T),]
+
+# and now the ones in which two words have been replaced
+pattern_candidates2 <- pattern_candidates[grep("XXX XXX", pattern_candidates$pattern),]
+
+```
+
+Now we check whether the pattern candidates are attested in the main corpus.
+
+```{r patterncand2, eval = FALSE}
+
+pattern_candidates1$fion_input <-
+  unlist(pbmclapply(1:nrow(pattern_candidates1),
+                    function(i)                      find_in_tokens(unlist(strsplit(as.character(pattern_candidates1[i,2]), " "))[which(unlist(strsplit(as.character(pattern_candidates1[i,1]), " "))=="XXX")], col = "fion_input"), mc.cores = 6))
+
+pattern_candidates1$silvie_input <-
+  unlist(pbmclapply(1:nrow(pattern_candidates1),
+                    function(i)
+ find_in_tokens(unlist(strsplit(as.character(pattern_candidates1[i,2]), " "))[which(unlist(strsplit(as.character(pattern_candidates1[i,1]), " "))=="XXX")], col = "silvie_input"), mc.cores = 6))
+pattern_candidates1$fion <-
+  unlist(pbmclapply(1:nrow(pattern_candidates1),
+                    function(i)
+                      find_in_tokens(unlist(strsplit(as.character(pattern_candidates1[i,2]), " "))[which(unlist(strsplit(as.character(pattern_candidates1[i,1]), " "))=="XXX")], col = "fion"), mc.cores = 6))
+pattern_candidates1$silvie <-
+  unlist(pbmclapply(1:nrow(pattern_candidates1),
+                    function(i)
+                      find_in_tokens(unlist(strsplit(as.character(pattern_candidates1[i,2]), " "))[which(unlist(strsplit(as.character(pattern_candidates1[i,1]), " "))=="XXX")], col = "silvie"), mc.cores = 6))
+
+pattern_candidates1$fion_mono <- unlist(pbmclapply(1:nrow(pattern_candidates1),
+                     function(i)
+                       find_in_tokens(unlist(strsplit(as.character(pattern_candidates1[i,2]), " "))[which(unlist(strsplit(as.character(pattern_candidates1[i,1]), " "))=="XXX")], col = "fion_mono"), mc.cores = 6))
+pattern_candidates1$fion_mixed <- unlist(pbmclapply(1:nrow(pattern_candidates1),
+                                                  function(i)
+                                                    find_in_tokens(unlist(strsplit(as.character(pattern_candidates1[i,2]), " "))[which(unlist(strsplit(as.character(pattern_candidates1[i,1]), " "))=="XXX")], col = "fion_mixed"), mc.cores = 6))
+pattern_candidates1$silvie_mono <- unlist(pbmclapply(1:nrow(pattern_candidates1),
+                                                  function(i)
+                                                    find_in_tokens(unlist(strsplit(as.character(pattern_candidates1[i,2]), " "))[which(unlist(strsplit(as.character(pattern_candidates1[i,1]), " "))=="XXX")], col = "silvie_mono"), mc.cores = 6))
+pattern_candidates1$silvie_mixed <- unlist(pbmclapply(1:nrow(pattern_candidates1),
+                                                   function(i)
+                                                     find_in_tokens(unlist(strsplit(as.character(pattern_candidates1[i,2]), " "))[which(unlist(strsplit(as.character(pattern_candidates1[i,1]), " "))=="XXX")], col = "silvie_mixed"), mc.cores = 6))
+
+
+
+```
+
+For the second batch of pattern candidates - those with 2 omitted words - we do the same but with bigrams
+
+```{r patterncand3}
+
+# add column with omitted bigrams
+pattern_candidates2$omitted_bigram <- unlist(pbmclapply(1:nrow(pattern_candidates2), 
+           function(i) 
+             paste0(unlist(strsplit(pattern_candidates2$target[i], " "))[which(unlist(strsplit(pattern_candidates2$pattern[i], " ")) == "XXX")], collapse = " "), mc.cores = 6))
+
+# search the omitted bigram in the data
+pattern_candidates2$fion_input <- logical(nrow(pattern_candidates2))
+pattern_candidates2[which(pattern_candidates2$omitted_bigram %in% as.character(unlist(tokens_ngrams(tokens(fion_input$Utterance_clean), concatenator = " ")))),]$fion_input <- TRUE
+
+pattern_candidates2$silvie_input <- logical(nrow(pattern_candidates2))
+pattern_candidates2[which(pattern_candidates2$omitted_bigram %in% as.character(unlist(tokens_ngrams(tokens(silvie_input$Utterance_clean), concatenator = " ")))),]$silvie_input <- TRUE
+
+pattern_candidates2$fion_mono <- logical(nrow(pattern_candidates2))
+pattern_candidates2[which(pattern_candidates2$omitted_bigram %in% as.character(unlist(tokens_ngrams(tokens(filter(fion_mwu, type != "mixed")$Utterance_clean), concatenator = " ")))),]$fion_mono <- TRUE
+
+pattern_candidates2$silvie_mono <- logical(nrow(pattern_candidates2))
+pattern_candidates2[which(pattern_candidates2$omitted_bigram %in% as.character(unlist(tokens_ngrams(tokens(filter(silvie_mwu, type != "mixed")$Utterance_clean), concatenator = " ")))),]$silvie_mono <- TRUE
+
+
+```
+
+Now we combine the two:
+
+```{r patterncand4, eval = FALSE}
+
+pattern_candidates <- rbind(pattern_candidates1, pattern_candidates2[,-which(colnames(pattern_candidates2)=="omitted_bigram")])
+```
+
+Now we have to find out how often each pattern occurs in the respective main corpus, as we work with a frequency threshold of 2. For this purpose, we work with pattern types instead of tokens.
+
+```{r typecount, eval = FALSE}
+
+# list of pattern types
+pattern_types <- tibble( 
+  pattern = unique(pattern_candidates$pattern)
+)
+
+
+# get successive strings in all pattern candidates
+pattern_types$successive <- pbmclapply(1:nrow(pattern_types),
+           function(i)
+             get_successive_strings_v(pattern_types$pattern[i]))
+
+pattern_types$successive <- as.numeric(unlist(pattern_types$successive))
+
+# find number of pattern matches in the four corpora
+pattern_types$pattern_match_fion_input <- unlist(pbmclapply(1:nrow(pattern_types), function(i)
+  length(grepw(gsub("XXX( XXX)?", ".+",
+                    pattern_types$pattern[i]),
+               fion_input$Utterance_clean)), mc.cores = 6))
+pattern_types$pattern_match_silvie_input <- unlist(pbmclapply(1:nrow(pattern_types), function(i)
+  length(grepw(gsub("XXX( XXX)?", ".+",
+                    pattern_types$pattern[i]),
+               silvie_input$Utterance_clean)), mc.cores = 6))
+pattern_types$pattern_match_silvie <- unlist(pbmclapply(1:nrow(pattern_types), function(i)
+  length(grepw(gsub("XXX( XXX)?", ".+",
+                    pattern_types$pattern[i]),
+               silvie$Utterance_clean)), mc.cores = 6))
+pattern_types$pattern_match_silvie_mono <- unlist(pbmclapply(1:nrow(pattern_types), function(i)
+   length(grepw(gsub("XXX( XXX)?", ".+",
+                     pattern_types$pattern[i]),
+                filter(silvie, type %in% c("english", "german"))$Utterance_clean)), mc.cores = 6))
+pattern_types$pattern_match_fion_mono <- unlist(pbmclapply(1:nrow(pattern_types), function(i)
+   length(grepw(gsub("XXX( XXX)?", ".+",
+                     pattern_types$pattern[i]),
+                filter(fion, type %in% c("english", "german"))$Utterance_clean)), mc.cores = 6))
+
+# merge with pattern_candidates
+pattern_candidates <- left_join(pattern_candidates, pattern_types)
+
+```
+
+```{r patterncand5, echo = FALSE, message = FALSE, warning = FALSE}
+
+pattern_candidates <- read_csv("pattern_candidates.csv")
+
+```
+
+Now we check for every target utterance if the traceback is successful by checking whether a) the candidate pattern is attested at least twice in the main corpus, b) the omitted word(s) is/are attested in the main corpus. In many cases, more than one pattern candidate is valid; in these cases, pattern candidates with longer subsequent strings and pattern candidates with utterance-initial fixed strings (rather than XXX) are preferred, i.e. [this is XXX] is preferred over [this XXX cake] (longer consecutive fixed strings: 2 words vs. 1 word) and over [XXX is cake] (utterance-initial vs. utterance-internal/-final open slot).
+
+```{r tracebackalgorithm, eval = FALSE}
+
+# add column indicating traceback success &
+# column indicating pattern
+fion_mwu$success_fion_input <- logical(nrow(fion_mwu))
+fion_mwu$pattern_fion_input <- character(nrow(fion_mwu))
+
+silvie_mwu$success_silvie_input <- logical(nrow(silvie_mwu))
+silvie_mwu$pattern_silvie_input <- character(nrow(silvie_mwu))
+
+fion_mwu$success_silvie_input <- logical(nrow(fion_mwu))
+fion_mwu$pattern_silvie_input <- character(nrow(fion_mwu))
+
+silvie_mwu$success_fion_input <- logical(nrow(silvie_mwu))
+silvie_mwu$pattern_fion_input <- character(nrow(silvie_mwu))
+
+# fill those columns for the rows that
+# have already been identified as exact matches
+fion_mwu[which(fion_mwu$exact_match_fion_input==TRUE),]$success_fion_input <- TRUE
+fion_mwu[which(fion_mwu$exact_match_fion_input==TRUE),]$pattern_fion_input <-
+  fion_mwu[which(fion_mwu$exact_match_fion_input==TRUE),]$Utterance_clean
+
+silvie_mwu[which(silvie_mwu$exact_match_silvie_input==TRUE),]$success_silvie_input <- TRUE
+silvie_mwu[which(silvie_mwu$exact_match_silvie_input==TRUE),]$pattern_silvie_input <-
+  silvie_mwu[which(silvie_mwu$exact_match_silvie_input==TRUE),]$Utterance_clean
+
+fion_mwu[which(fion_mwu$exact_match_silvie_input==TRUE),]$success_silvie_input <- TRUE
+fion_mwu[which(fion_mwu$exact_match_silvie_input==TRUE),]$pattern_silvie_input <-
+  fion_mwu[which(fion_mwu$exact_match_silvie_input==TRUE),]$Utterance_clean
+
+
+silvie_mwu[which(silvie_mwu$exact_match_fion_input==TRUE),]$success_fion_input <- TRUE
+silvie_mwu[which(silvie_mwu$exact_match_fion_input==TRUE),]$pattern_fion_input <-
+  silvie_mwu[which(silvie_mwu$exact_match_fion_input==TRUE),]$Utterance_clean
+
+
+```
+
+We define a function that allows us to trace back the frame-and-slot patterns. As arguments, it requires a) the test corpus (e.g. the data frame fion_mwu), b) the main corpus (e.g. fion_input), c) the pattern list
+
+```{r tracebackfunction, message = FALSE}
+
+traceback <- function(test_corpus, main_corpus, xxx) {
+  for(k in 1:nrow(test_corpus)) {
+    
+  # column name for checking verbatim match in main corpus
+  col_em <- which(colnames(test_corpus)==paste0("exact_match_", main_corpus))
+    
+  if(test_corpus[k, col_em] == FALSE) {
+    
+    # list of patterns:
+    l_cur <- xxx[[k]]
+    
+    # the last one (= literal utterance/target)
+    # can be discarded
+    target <- l_cur[length(l_cur)]
+    target <- unlist(target)
+    l_cur <- l_cur[1:(length(l_cur)-1)]
+    
+    
+    # unlist
+    l_cur <- unlist(l_cur)
+    
+    # add info from pattern_candidates table
+    l_cur <- tibble(pattern = l_cur, target = target)
+    l_cur <- left_join(l_cur, pattern_candidates)
+    
+    # keep only those with pattern_match >= 2 in the
+    # target corpus & token_match = TRUE in the target
+    # corpus
+    
+    if(main_corpus == "fion_input") {
+      l_cur <- filter(l_cur, fion_input == TRUE & 
+                      pattern_match_fion_input >= 2)
+    } else if(main_corpus == "silvie_input") {
+      l_cur <- filter(l_cur, silvie_input == TRUE & 
+                      pattern_match_silvie_input >= 2)
+    } else if(main_corpus == "fion_mono") {
+      l_cur <- filter(l_cur, fion_mono == TRUE & 
+                      pattern_match_fion_mono >= 2)
+    } else if(main_corpus=="silvie_mono") {
+      l_cur <- filter(l_cur, silvie_mono == TRUE & 
+                      pattern_match_silvie_mono >= 2)
+    }
+    
+    
+    
+    if(nrow(l_cur) > 0) {
+      # specify if open slot is utterance-initial (if so,
+      # it will be dispreferred)
+      l_cur$utterance_initial_xxx <- grepl("^XXX", l_cur$pattern)
+      l_cur %>% arrange(utterance_initial_xxx)
+    }
+    
+    # sort by length of successive strings
+    if(nrow(l_cur) > 0) {
+      l_cur <- l_cur %>% arrange(desc(successive))
+    }
+    
+    # get the relevant columns for adding the results
+    col1 <- which(colnames(test_corpus) == paste0("success_", main_corpus))
+    col2 <- which(colnames(test_corpus) == paste0("pattern_", main_corpus))
+    
+    # the first one wins out
+    if(nrow(l_cur) > 0) {
+      test_corpus[k, col1] <- TRUE
+      test_corpus[k, col2] <- l_cur$pattern[1]
+    } else {
+      test_corpus[k, col1] <- FALSE
+    }
+
+
+    
+    
+  } 
+  
+  print(k)
+  
+  }
+  
+  return(test_corpus)
+}
+
+
+```
+
+As we want to use the code-mixed data as test corpus, we create a data frame only with the code-mixed utterances.
+
+```{r codemixed}
+
+# subset with code-mixed utterances
+fion_mixed <- filter(fion_mwu, type == "mixed")
+silvie_mixed <- filter(silvie_mwu, type == "mixed")
+
+# empty columns for success values and patterns
+# (we don't have to bother about exact matches here:
+# there are none, as code-mixed and monolingual data
+# are two entirely distinct sets)
+
+fion_mixed$success_fion_mono <- logical(nrow(fion_mixed))
+fion_mixed$success_silvie_mono <- logical(nrow(fion_mixed))
+fion_mixed$exact_match_fion_mono <- FALSE
+fion_mixed$exact_match_silvie_mono <- FALSE
+
+
+silvie_mixed$success_silvie_mono <- logical(nrow(silvie_mixed))
+silvie_mixed$success_fion_mono <- logical(nrow(silvie_mixed))
+silvie_mixed$exact_match_silvie_mono <- FALSE
+silvie_mixed$exact_match_fion_mono <- FALSE
+
+```
+
+Now we apply the function to the cases we are interested in.
+
+```{r applytraceback, message = FALSE, eval = FALSE}
+
+# Fion --> Own input
+fion_mwu <- traceback(test_corpus = fion_mwu, main_corpus = "fion_input", xxx = fion_mwu_xxx)
+
+# Silvie --> Own input
+silvie_mwu <- traceback(test_corpus = silvie_mwu, main_corpus = "silvie_input", xxx = silvie_mwu_xxx)
+
+# Fion --> Silvie's input
+fion_mwu <- traceback(test_corpus = fion_mwu, main_corpus = "silvie_input", xxx = fion_mwu_xxx)
+
+# Silvie --> Fion's input
+silvie_mwu <- traceback(test_corpus = silvie_mwu, main_corpus = "fion_input", xxx = silvie_mwu_xxx)
+
+# Fion mixed --> Own monolingual data
+fion_mixed <- traceback(test_corpus = fion_mixed, main_corpus = "fion_mono", xxx = fion_mixed_xxx)
+
+# Silvie mixed --> Own monolingual data
+silvie_mixed <- traceback(test_corpus = silvie_mixed, main_corpus = "silvie_mono", xxx = silvie_mixed_xxx)
+
+# Fion mixed --> Silvie's monolingual data
+fion_mixed <- traceback(test_corpus = fion_mixed, main_corpus = "silvie_mono", xxx = fion_mixed_xxx)
+
+# Silvie mixed --> Fion's monolingual data
+silvie_mixed <- traceback(test_corpus = silvie_mixed, main_corpus = "fion_mono", xxx = silvie_mixed_xxx)
+
+```
+
+```{r exportimport, include = FALSE, message = FALSE, warning = FALSE, eval = FALSE}
+
+# saveRDS(fion_mwu, "fion_mwu.Rds")
+# saveRDS(fion_mixed, "fion_mixed.Rds")
+# saveRDS(silvie_mwu, "silvie_mwu.Rds")
+# saveRDS(silvie_mixed, "silvie_mixed.Rds")
+
+```
+
+```{r readinagain2, include = FALSE, message = FALSE, warning = FALSE}
+
+fion_mwu <- readRDS("fion_mwu.Rds")
+fion_mixed <- readRDS("fion_mixed.Rds")
+silvie_mwu <- readRDS("silvie_mwu.Rds")
+silvie_mixed <- readRDS("silvie_mixed.Rds")
+
+```
+
+## Visualization
+
+For visualization, we use the `qbarplot` function from the `wizard` package. As we want to get a ternary result (fixed string, frame+slot pattern, or fail), we first define a function that allows adding a column thct contains this information.
+
+```{r wizardgraphs}
+
+# function for getting traceback success
+# as a ternary variable
+tb_ternary <- function(x, col1, col2) {
+  
+  # add ternary traceback success
+  x1 <- sapply(1:nrow(x), function(i) 
+    if(x[i,which(colnames(x)==col1)] == TRUE 
+       & x[i, which(colnames(x) == col2)] == TRUE ) "exact match" 
+    else if (x[i,which(colnames(x)==col1)] == FALSE & 
+             x[i, which(colnames(x) == col2)] == TRUE ) "frame + slot" else
+               "fail")
+  
+  x1 <- factor(x1, levels = c("fail", "frame + slot", "exact match"))
+  x1 <- droplevels(x1)
+  
+  return(x1)
+}
+
+
+
+
+# Child_mixed --> Own monolingual data
+
+( p1 <- rbind(mutate(select(silvie_mixed, Month), 
+       Child = "Silvie", Traceback_success = tb_ternary(silvie_mixed, "exact_match_silvie_mono", "success_silvie_mono")),
+      mutate(select(fion_mixed, Month), 
+             Child = "Fion", Traceback_success = tb_ternary(fion_mixed, "exact_match_fion_mono", "success_fion_mono"))) %>%
+  qbarplot(x = "Child", fill = Traceback_success) +
+  guides(fill = guide_legend(title = "Traceback success")) +
+  ggtitle("Test corpus: Child - mixed,\nmain corpus: Own monolingual data") +
+  theme(plot.title = element_text(face = "bold", hjust = 0.5)) )
+
+( p2 <- rbind(mutate(select(silvie_mixed, Month), 
+       Child = "Silvie", Traceback_success = tb_ternary(silvie_mixed, "exact_match_fion_mono", "success_fion_mono")),
+      mutate(select(fion_mixed, Month), 
+             Child = "Fion", Traceback_success = tb_ternary(fion_mixed, "exact_match_silvie_mono", "success_silvie_mono"))) %>%
+  qbarplot(x = "Child", fill = Traceback_success, 
+           color = brewer.pal(3, "Greens")[2:3]) +
+  guides(fill = guide_legend(title = "Traceback success")) +
+  ggtitle("Test corpus: Child - mixed,\nmain corpus: Other child's monolingual data") +
+  theme(plot.title = element_text(face = "bold", hjust = 0.5)) )
+
+
+# Child - mixed --> Input data
+
+mixed_to_input <- rbind(
+  select(filter(fion_mwu, type == "mixed"), Month, exact_match_fion_input, success_fion_input, exact_match_silvie_input, success_silvie_input) %>% mutate (Child = "Fion", Traceback_success_within = tb_ternary(filter(fion_mwu, type == "mixed"), "exact_match_fion_input", "success_fion_input"), Traceback_success_cross = tb_ternary(filter(fion_mwu, type == "mixed"), "exact_match_silvie_input", "success_silvie_input")) %>% rename(exact_match_within = exact_match_fion_input, success_within = success_fion_input, exact_match_cross = exact_match_silvie_input, success_cross = success_silvie_input),
+
+
+
+select(filter(silvie_mwu, type == "mixed"), Month, exact_match_silvie_input, success_silvie_input, exact_match_fion_input, success_fion_input) %>% mutate (Child = "Silvie", Traceback_success_within = tb_ternary(filter(silvie_mwu, type == "mixed"), "exact_match_silvie_input", "success_silvie_input"), Traceback_success_cross = tb_ternary(filter(silvie_mwu, type == "mixed"), "exact_match_fion_input", "success_fion_input")) %>% rename(exact_match_within = exact_match_silvie_input, success_within = success_silvie_input, exact_match_cross = exact_match_fion_input, success_cross = success_fion_input)
+  
+)
+
+
+( p3 <- qbarplot(mixed_to_input, x = "Child", fill = "Traceback_success_within") + guides(fill = guide_legend(title = "Traceback success")) +
+  ggtitle("Test corpus: Child - mixed,\nmain corpus: Own input data") +
+  theme(plot.title = element_text(face = "bold", hjust = 0.5)) )
+
+( p4 <- qbarplot(mixed_to_input, x = "Child", fill = "Traceback_success_cross",  color = brewer.pal(3, "Greens")) + guides(fill = guide_legend(title = "Traceback success")) +
+  ggtitle("Test corpus: Child - mixed,\nmain corpus: Other child's input data") +
+  theme(plot.title = element_text(face = "bold", hjust = 0.5)) )
+
+
+# export
+# p1 | p2
+# ggsave("mixed_to_mono.png", width = 14, height = 6)
+# 
+# p3 | p4
+# ggsave("mixed_to_input.png", width = 14, height = 6)
+
+```
+
+
+As the traceback algorithm has been applied to the entire dataset, not just the code-mixed data, we are now interested in the results for the full dataset.
+
+```{r fullds}
+
+all_to_input <- rbind(
+  select(fion_mwu, Month, exact_match_fion_input, success_fion_input, exact_match_silvie_input, success_silvie_input) %>% mutate (Child = "Fion", Traceback_success_within = tb_ternary(fion_mwu, "exact_match_fion_input", "success_fion_input"), Traceback_success_cross = tb_ternary(fion_mwu, "exact_match_silvie_input", "success_silvie_input")) %>% rename(exact_match_within = exact_match_fion_input, success_within = success_fion_input, exact_match_cross = exact_match_silvie_input, success_cross = success_silvie_input),
+
+select(silvie_mwu, Month, exact_match_silvie_input, success_silvie_input, exact_match_fion_input, success_fion_input) %>% mutate (Child = "Silvie", Traceback_success_within = tb_ternary(silvie_mwu, "exact_match_silvie_input", "success_silvie_input"), Traceback_success_cross = tb_ternary(silvie_mwu, "exact_match_fion_input", "success_fion_input")) %>% rename(exact_match_within = exact_match_silvie_input, success_within = success_silvie_input, exact_match_cross = exact_match_fion_input, success_cross = success_fion_input)
+  
+)
+
+
+( p1a <- qbarplot(all_to_input, x = "Child", fill = "Traceback_success_within") + guides(fill = guide_legend(title = "Traceback success")) +
+  ggtitle("Test corpus: Child - entire dataset,\nmain corpus: Own input data") +
+  theme(plot.title = element_text(face = "bold", hjust = 0.5)) )
+
+( p2a <- qbarplot(all_to_input, x = "Child", fill = "Traceback_success_cross",  color = brewer.pal(3, "Greens")) + guides(fill = guide_legend(title = "Traceback success")) +
+  ggtitle("Test corpus: Child - entire dataset,\nmain corpus: Other child's input data") +
+  theme(plot.title = element_text(face = "bold", hjust = 0.5)) )
+
+
+# export for publication:
+# p1a | p2a
+# ggsave("all_to_input.png", width = 14, height = 6)
+
+
+
+```
+
+
+## Regression models
+
+In order to evaluate whether the traceback is significantly more successful in the within-corpus approch, we fit a mixed-effects logistic regression model using the traceback result as response variable.
+
+We do this first for the mixed to mono data:
+
+```{r regr}
+
+# first, we need a "long" dataframe so that the results for within-corpus and mixed-corpus are in different rows, rather than columns.
+
+model_input_fion <- rbind(
+  mutate(select(fion_mixed, Utterance_clean, success_fion_mono), type = "within") %>% rename(success = success_fion_mono),
+  mutate(select(fion_mixed, Utterance_clean, success_silvie_mono), type = "cross") %>% rename(success = success_silvie_mono)
+  
+)
+
+model_input_silvie <- rbind(
+  mutate(select(silvie_mixed, Utterance_clean, success_silvie_mono), type = "within") %>% rename(success = success_silvie_mono),
+  mutate(select(silvie_mixed, Utterance_clean, success_fion_mono), type = "cross") %>% rename(success = success_fion_mono)
+  
+)
+
+
+m_fion <- glmer(success ~ type + (1 | Utterance_clean),
+      data = model_input_fion, family = "binomial")
+summary(m_fion)
+
+
+m_silvie <- glmer(success ~ type + (1 | Utterance_clean),
+      data = model_input_silvie, family = "binomial")
+summary(m_silvie)
+
+
+
+
+```
+
+
+And now, the same for the mixed to input data.
+
+```{r regr2}
+
+model_fion_input <- rbind(
+  filter(fion_mwu, type == "mixed") %>% select(Utterance_clean, success_fion_input) %>% mutate(Type = "within") %>% rename(success = success_fion_input),
+
+filter(fion_mwu, type == "mixed") %>% select(Utterance_clean, success_silvie_input)  %>% mutate(Type = "cross") %>% rename(success = success_silvie_input)
+)
+
+model_silvie_input <- rbind(
+  filter(silvie_mwu, type == "mixed") %>% select(Utterance_clean, success_silvie_input) %>% mutate(Type = "within") %>% rename(success = success_silvie_input),
+
+filter(silvie_mwu, type == "mixed") %>% select(Utterance_clean, success_fion_input)  %>% mutate(Type = "cross") %>% rename(success = success_fion_input)
+)
+
+m_fion_input <- glmer(success ~ Type + (1 | Utterance_clean),
+                      data = model_fion_input, family = "binomial")
+
+summary(m_fion_input)
+
+m_silvie_input <- glmer(success ~ Type + (1 | Utterance_clean),
+                      data = model_silvie_input, family = "binomial")
+
+summary(m_silvie_input)
+
+
+```
+
+For the paper, we combine all coefficients in one table:
+
+```{r allcoef}
+
+rbind(
+  
+summary(m_fion)$coef %>% as.data.frame %>% rownames_to_column() %>% mutate(model = "Fion --> mono"),
+summary(m_silvie)$coef %>% as.data.frame %>% rownames_to_column() %>% mutate(model = "Silvie --> mono"),
+summary(m_fion_input)$coef %>% as.data.frame %>% rownames_to_column() %>% mutate(model = "Fion --> input"),
+summary(m_silvie_input)$coef %>% as.data.frame %>% rownames_to_column() %>% mutate(model = "Silvie --> input")
+) %>% pretty_df() # %>% write_excel_csv("model_coef.csv")
+
+
+
+```
+
