@@ -880,9 +880,42 @@ summary(m_silvie_input)
 
 ```
 
+And finally, we apply the same analysis to the traceback based on all the child's utterances (rather than just the code-mixed ones).
+
+```{r regrall}
+
+# input for the two models:
+m_all_input_fion <- rbind(fion_mwu %>% select(Utterance_clean, success_fion_input) %>% set_names("Utterance", "success") %>% mutate(Type = "within"), 
+                          fion_mwu %>% select(Utterance_clean, success_silvie_input) %>% set_names("Utterance", "success") %>% mutate(Type = "cross"))
+
+m_all_input_silvie <- rbind(silvie_mwu %>% select(Utterance_clean, success_silvie_input) %>% set_names("Utterance", "success") %>% mutate(Type = "within"), 
+                          silvie_mwu %>% select(Utterance_clean, success_fion_input) %>% set_names("Utterance", "success") %>% mutate(Type = "cross"))
+
+
+# change factor levels
+m_all_input_fion$Type <- factor(m_all_input_fion$Type, levels = c("within", "cross"))
+
+m_all_input_silvie$Type <- factor(m_all_input_silvie$Type, levels = c("within", "cross"))
+
+
+# models:
+m_all_fion <- glmer(success ~ Type + (1 | Utterance), family = "binomial", data = m_all_input_fion)
+summary(m_all_fion)
+
+m_all_silvie <- glmer(success ~ Type + (1 | Utterance), family = "binomial", data = m_all_input_silvie)
+summary(m_all_silvie)
+
+
+```
+
+
+## Summary: Model coefficients for traceback of code-mixed data
+
 For the paper, we combine all coefficients in one table:
 
 ```{r allcoef}
+
+
 
 rbind(
   
@@ -892,6 +925,20 @@ summary(m_fion_input)$coef %>% as.data.frame %>% rownames_to_column() %>% mutate
 summary(m_silvie_input)$coef %>% as.data.frame %>% rownames_to_column() %>% mutate(model = "Silvie --> input")
 ) %>% pretty_df() # %>% write_excel_csv("model_coef.csv")
 
+
+
+```
+
+## Summary: Model coefficients for traceback of all data to the input
+
+```{r allcoef2}
+
+
+rbind(
+  
+summary(m_all_fion)$coef %>% as.data.frame %>% rownames_to_column() %>% mutate(model = "Fion --> input"),
+summary(m_all_silvie)$coef %>% as.data.frame %>% rownames_to_column() %>% mutate(model = "Silvie --> input")
+) %>% pretty_df() # %>% write_excel_csv("model_coef2.csv")
 
 
 ```
