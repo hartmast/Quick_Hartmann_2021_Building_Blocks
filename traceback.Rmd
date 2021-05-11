@@ -1130,3 +1130,5 @@ my_plots2[[3]]
 ```
 
 (Note: The colors indicating the different languages have been added manually using [Inkscape](https://inkscape.org/)).
+
+This page was created using [R Markdown](https://bookdown.org/yihui/rmarkdown/) using the Bootstrap theme [flatly](https://bootswatch.com/3/flatly/) under the [MIT License](https://opensource.org/licenses/MIT). All material in this repository is licensed under [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/).
